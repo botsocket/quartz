@@ -1,0 +1,36 @@
+{
+    "name": "@botbind/hubble",
+    "version": "1.0.0",
+    "description": "Discord gateway connector",
+    "main": "src/index.js",
+    "types": "src/index.d.ts",
+    "files": [
+        "src"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/botbind/hubble.git"
+    },
+    "author": "Bot Bind's Team",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/botbind/hubble/issues"
+    },
+    "homepage": "https://github.com/botbind/hubble#readme",
+    "scripts": {
+        "lint": "eslint . --report-unused-disable-directives && echo \"No errors found\"",
+        "lint:fix": "eslint . --fix && echo \"No errors found\"",
+        "test": "jest --coverage && tsc && npm run lint && echo \"No errors found\"",
+        "test:watch": "jest --watchAll"
+    },
+    "devDependencies": {
+        "@hapi/eslint-plugin-hapi": "^4.3.5",
+        "eslint": "^6.8.0",
+        "jest": "^25.1.0",
+        "typescript": "^3.8.3"
+    },
+    "dependencies": {},
+    "engines": {
+        "node": ">=12.0.0"
+    }
+}
