@@ -1,16 +1,15 @@
-# Dust
+# Hubble
 
 ![Bot Bind's logo](https://botbind.com/images/logoBB.png)
 
-## Utility methods for the Bot Bind ecosystem
+## Discord gateway connector
 
 ### Acknowledgments
 
 Special thanks to all contributors of the following libraries:
 
--   [Lodash](https://github.com/lodash/lodash)
--   [Hoek](https://github.com/hapijs/hoek)
--   [deep-eql](https://github.com/chaijs/deep-eql)
+-   [@hapi/nes](https://github.com/hapijs/nes)
+-   [Discord developer portal](https://discord.com/developers)
 
 ### Useful links
 
