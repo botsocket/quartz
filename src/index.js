@@ -60,7 +60,6 @@ internals.Client = class {
         this.onClose = internals.noop;
         this.onError = (error) => console.log(error);
         this.onDispatch = internals.noop;
-        this.onReconnect = internals.noop;
 
         // State
 
@@ -147,6 +146,8 @@ internals.Client = class {
         const onClose = (code, reason) => {
 
             reason = reason || 'Unknown reason';
+
+            this.onClose(code, reason);
 
             this._cleanup();
 
@@ -303,11 +304,10 @@ internals.Client = class {
 
         if (payload.op === internals.opCodes.dispatch) {
             const event = payload.t;
-            const eventName = internals.event(event);
 
-            this.events.emit('dispatch', eventName, payload.d);             // Synchronous
+            this.onDispatch(event, payload.d);
 
-            if (eventName === 'ready') {
+            if (event === 'READY') {
                 this.id = payload.d.session_id;
                 callback();
             }
