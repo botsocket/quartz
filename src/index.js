@@ -2,7 +2,7 @@
 
 const Assert = require('@botbind/dust/src/assert');
 
-const Ws = typeof windows === 'undefined' ? require('ws') : WebSocket;
+const Ws = typeof window === 'undefined' ? require('ws') : WebSocket;       // eslint-disable-line no-undef
 
 const internals = {
     opCodes: {                                // https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-opcodes
