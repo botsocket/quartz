@@ -2,7 +2,7 @@
 
 ![Bot Bind's logo](https://botbind.com/images/logoBB.png)
 
-## Discord gateway connector
+## Discord gateway client
 
 ### Acknowledgments
 

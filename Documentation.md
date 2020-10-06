@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Hubble is a library that simplies Discord gateway connection.
+Hubble is a browser-friendly module that simplies Discord gateway connection.
 
 ## Installation
 
@@ -17,10 +17,16 @@ npm install @botbind/hubble
 ```js
 const Hubble = require('@botbind/hubble');
 
-const gateway = Hubble.connect();
-
-gateway.events.on('ready', () => {
-
-    console.log('Gateway is ready');
+const gateway = Hubble.client('wss://gateway.discord.gg', {
+    token: 'your_discord_bot_token',
 });
+
+gateway.onDispatch = function (event) {
+
+    if (event === 'READY') {
+        console.log('Gateway is ready');
+    }
+};
+
+gateway.connect();
 ```
