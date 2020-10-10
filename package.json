@@ -24,10 +24,7 @@
         "test:watch": "jest --watchAll"
     },
     "devDependencies": {
-        "@hapi/eslint-plugin-hapi": "^4.3.5",
-        "eslint": "^6.8.0",
-        "jest": "^25.1.0",
-        "typescript": "^3.8.3"
+        "test": "jest --coverage && echo \"All tests passed\" && tsc && echo \"All type tests passed\" && eslint . --report-unused-disable-directives && echo \"No linting errors\""
     },
     "dependencies": {
         "@botsocket/bone": "^14.0.0",
