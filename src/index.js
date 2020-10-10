@@ -347,12 +347,12 @@ internals.Client = class {
         if (payload.op === internals.opCodes.dispatch) {
             const event = payload.t;
 
-            this.onDispatch(event, payload.d);
-
             if (event === 'READY') {
                 this.id = payload.d.session_id;
                 callback();
             }
+
+            this.onDispatch(event, payload.d);
         }
     }
 
