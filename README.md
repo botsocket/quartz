@@ -1,6 +1,4 @@
-# Hubble
-
-![Bot Bind's logo](https://botbind.com/images/logoBB.png)
+# Quartz
 
 ## Discord gateway client
 
@@ -13,7 +11,8 @@ Special thanks to all contributors of the following libraries:
 
 ### Useful links
 
--   [Documentation and API](https://github.com/botbind/dust/blob/master/Documentation.md)
--   [Release notes](https://github.com/botbind/dust/labels/release%20notes)
--   [Bot Bind](https://botbind.com)
--   [Nebula](https://github.com/botbind/nebula)
+-   [Documentation and API](https://github.com/botsocket/quartz/blob/master/Documentation.md)
+-   [Releases](https://github.com/botsocket/quartz/releases)
+-   [BotSocket](https://botsocket.com)
+-   [Moonstone](https://github.com/botsocket/moonstone)
+

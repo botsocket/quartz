@@ -1,5 +1,5 @@
 {
-    "name": "@botbind/hubble",
+    "name": "@botsocket/quartz",
     "version": "1.0.0",
     "description": "Discord gateway connector",
     "main": "src/index.js",
@@ -9,14 +9,14 @@
     ],
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/botbind/hubble.git"
+        "url": "git+https://github.com/botsocket/quartz.git"
     },
-    "author": "Bot Bind's Team",
+    "author": "BotSocket",
     "license": "MIT",
     "bugs": {
-        "url": "https://github.com/botbind/hubble/issues"
+        "url": "https://github.com/botsocket/quartz/issues"
     },
-    "homepage": "https://github.com/botbind/hubble#readme",
+    "homepage": "https://github.com/botsocket/quartz#readme",
     "scripts": {
         "lint": "eslint . --report-unused-disable-directives && echo \"No errors found\"",
         "lint:fix": "eslint . --fix && echo \"No errors found\"",
@@ -30,7 +30,7 @@
         "typescript": "^3.8.3"
     },
     "dependencies": {
-        "@botbind/dust": "^14.0.0",
+        "@botsocket/bone": "^14.0.0",
         "ws": "^7.3.1"
     },
     "engines": {

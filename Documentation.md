@@ -2,22 +2,22 @@
 
 ## Introduction
 
-Hubble is a browser-friendly module that simplies Discord gateway connection.
+Quartz is a module that simplies Discord gateway connection.
 
 ## Installation
 
-Hubble is available on npm:
+Quartz is available on npm:
 
 ```bash
-npm install @botbind/hubble
+npm install @botsocket/quartz
 ```
 
 ## Usage
 
 ```js
-const Hubble = require('@botbind/hubble');
+const Quartz = require('@botsocket/quartz');
 
-const gateway = Hubble.client('wss://gateway.discord.gg', {
+const gateway = Quartz.client('wss://gateway.discord.gg', {
     token: 'your_discord_bot_token',
 });
 

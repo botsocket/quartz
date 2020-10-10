@@ -1,6 +1,6 @@
 'use strict';
 
-const Assert = require('@botbind/dust/src/assert');
+const Assert = require('@botsocket/bone/src/assert');
 
 const Ws = typeof window === 'undefined' ? require('ws') : WebSocket;       // eslint-disable-line no-undef
 
@@ -69,7 +69,7 @@ internals.Client = class {
         this._heartbeatAcked = true;                                    // Whether the last heartbeat is acknowledged
         this._payloads = [];                                            // Pending payloads to be sent
         this._ratelimitTimer = null;                                    // Rate limit timeout
-        this._reconnection = null;                                      // Reconnection config
+        this._reconnection = null;                                      // Reconnection state
         this._remainingPayloads = internals.ratelimit.total;            // Remaining payloads until rate limited
         this._reconnectionTimer = null;                                 // Reconnection timeout
     }
@@ -83,8 +83,6 @@ internals.Client = class {
         if (reconnect !== false) {                                                                  // Defaults to true
             this._reconnection = {
                 wait: 0,
-                delay: reconnect.delay || 1000,
-                maxDelay: reconnect.maxDelay || 5000,
                 attempts: reconnect.attempts === undefined ? Infinity : reconnect.attempts,
             };
         }
@@ -171,7 +169,7 @@ internals.Client = class {
         ws.once('open', this.onOpen);
         ws.once('error', onError);
         ws.on('message', onMessage);
-        ws.once('close', onClose);
+        ws.on('close', onClose);
     }
 
     _cleanup(code) {
@@ -206,9 +204,9 @@ internals.Client = class {
 
         const reconnection = this._reconnection;
         reconnection.attempts--;
-        reconnection.wait += reconnection.delay;
+        reconnection.wait += this._settings.reconnection.delay;
 
-        const timeout = Math.min(reconnection.wait, reconnection.maxDelay);
+        const timeout = Math.min(reconnection.wait, this._settings.reconnection.maxDelay);
 
         this._reconnectionTimer = setTimeout(() => {
 
