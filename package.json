@@ -27,7 +27,7 @@
         "typescript": "^3.8.3"
     },
     "dependencies": {
-        "@botsocket/bone": "^14.0.0",
+        "@botsocket/bone": "^1.0.0",
         "@botsocket/jade": "^1.0.0",
         "ws": "^7.3.1"
     },
