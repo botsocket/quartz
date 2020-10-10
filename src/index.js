@@ -196,7 +196,11 @@ internals.Client = class {
         this._ws = null;
 
         ws.close(code);
-        ws.removeAllListeners();
+
+        ws.onopen = null;
+        ws.onerror = null;
+        ws.onmessage = null;
+        ws.onclose = null;
 
         this.id = null;
         this._seq = null;
