@@ -372,7 +372,7 @@ internals.Client = class {
 
     _identify() {
 
-        const token = this.client._settings.token;
+        const token = this._settings.token;
 
         // Resume if possible
 
@@ -447,7 +447,11 @@ internals.noop = () => { };
 
 internals.intents = function (intents) {
 
-    let finalIntents;
+    if (!intents) {
+        return;
+    }
+
+    let finalIntents = 0;
     for (const intent of intents) {
         const value = typeof intent === 'string' ? internals.intents[intent] : intent;
         finalIntents |= value;
