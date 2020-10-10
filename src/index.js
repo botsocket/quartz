@@ -1,6 +1,7 @@
 'use strict';
 
 const Assert = require('@botsocket/bone/src/assert');
+const Jade = require('@botsocket/jade');
 
 const Ws = typeof window === 'undefined' ? require('ws') : WebSocket;       // eslint-disable-line no-undef
 
@@ -28,31 +29,65 @@ const internals = {
         total: 120,
         timeout: 60 * 1000,
     },
+
+    intents: {                                // https://discord.com/developers/docs/topics/gateway#list-of-intents
+        GUILDS: 1 << 0,
+        GUILD_MEMBERS: 1 << 1,
+        GUILD_BANS: 1 << 2,
+        GUILD_EMOJIS: 1 << 3,
+        GUILD_INTEGRATIONS: 1 << 4,
+        GUILD_WEBHOOKS: 1 << 5,
+        GUILD_INVITES: 1 << 6,
+        GUILD_VOICE_STATES: 1 << 7,
+        GUILD_PRESENCES: 1 << 8,
+        GUILD_MESSAGES: 1 << 9,
+        GUILD_MESSAGE_REACTIONS: 1 << 10,
+        GUILD_MESSAGE_TYPING: 1 << 11,
+        DIRECT_MESSAGES: 1 << 12,
+        DIRECT_MESSAGE_REACTIONS: 1 << 13,
+        DIRECT_MESSAGE_TYPING: 1 << 14,
+    },
 };
+
+internals.schema = Jade.object({
+    token: Jade.str().required(),
+    id: Jade.str(),
+    shard: Jade.arr().ordered(Jade.num().required(), Jade.num().required()),
+    intents: Jade.arr()
+        .items(Jade.valid(...Object.keys(internals.intents), ...Object.values(internals.intents)).required())
+        .single(),
+
+    reconnect: Jade.obj({
+        attempts: Jade.num().default(Infinity),
+        delay: Jade.num().default(1000),
+        maxDelay: Jade.num().min(Jade.ref('delay')).default(5000),
+    })
+        .allow(false)
+        .default(),
+})
+    .required();
 
 exports.client = function (url, options) {
 
     return new internals.Client(url, options);
 };
 
-internals.noop = () => { };
-
 internals.Client = class {
     constructor(url, options) {
 
         Assert(typeof url === 'string', 'Url must be a string');
-        Assert(typeof options === 'object', 'Options must be an object');
-        Assert(typeof options.token === 'string', 'Option token must be a string');
-        Assert(options.shard === undefined || Array.isArray(options.shard), 'Option shard must be an array');
-        Assert(options.id === undefined || typeof options.id === 'string', 'Option id must be a string');
+
+        const settings = internals.schema.attempt(options);
 
         this.url = url;
-        this.shard = options.shard || [0, 1];
-        delete options.shard;
+        this.shard = settings.shard || [0, 1];                          // Gateway shard
+        this.intents = internals.intents(settings.intents);             // Gateway intents
+        delete settings.intents;
+        delete settings.shard;
 
         this._ws = null;                                                // WebSocket connection
 
-        this._settings = options;                                       // Connection options
+        this._settings = settings;                                      // Connection options
 
         // Event handlers
 
@@ -63,7 +98,7 @@ internals.Client = class {
 
         // State
 
-        this.id = options.id;                                           // Session id
+        this.id = settings.id;                                          // Session id (Allow resuming on instantiation)
         this._seq = null;                                               // Sequence number
         this._heartbeatTimer = null;                                    // Heartbeat interval
         this._heartbeatAcked = true;                                    // Whether the last heartbeat is acknowledged
@@ -81,10 +116,7 @@ internals.Client = class {
 
         const reconnect = this._settings.reconnect;
         if (reconnect !== false) {                                                                  // Defaults to true
-            this._reconnection = {
-                wait: 0,
-                attempts: reconnect.attempts === undefined ? Infinity : reconnect.attempts,
-            };
+            this._reconnection = { wait: 0, attempts: reconnect.attempts };
         }
 
         return new Promise((resolve, reject) => {
@@ -131,8 +163,6 @@ internals.Client = class {
         const onError = (error) => {
 
             finalize(error);
-
-            this._cleanup();
             this._reconnect();
         };
 
@@ -143,44 +173,30 @@ internals.Client = class {
 
         const onClose = (code, reason) => {
 
-            reason = reason || 'Unknown reason';
-
-            this.onClose(code, reason);
-
-            this._cleanup();
-
-            if (internals.nonReconnectableCodes.includes(code)) {
-                return finalize(new Error(code === 4004 ? 'Invalid token' : reason));
-            }
-
-            if (this._disconnectCallback) {
-                const disconnectCallback = this._disconnectCallback;
-                this._disconnectCallback = null;
-                return disconnectCallback();
-            }
-
-            if (!this._reconnection.attempts) {
-                return finalize(new Error('Maximum reconnection attempts reached'));
-            }
-
-            this._reconnect();
+            this._reconnect(code, reason, finalize);
         };
 
-        ws.once('open', this.onOpen);
-        ws.once('error', onError);
-        ws.on('message', onMessage);
-        ws.on('close', onClose);
+        // Use compatible API with the browser
+
+        ws.onopen = this.onOpen;
+        ws.onerror = onError;
+        ws.onmessage = onMessage;
+        ws.onclose = onClose;
     }
 
     _cleanup(code) {
 
-        if (this._ws) {
-            const ws = this._ws;
-            this._ws = null;
+        // Already cleaned up
 
-            ws.close(code);
-            ws.removeAllListeners();
+        if (!this._ws) {
+            return;
         }
+
+        const ws = this._ws;
+        this._ws = null;
+
+        ws.close(code);
+        ws.removeAllListeners();
 
         this.id = null;
         this._seq = null;
@@ -196,10 +212,40 @@ internals.Client = class {
         this._ratelimitTimer = null;
     }
 
-    _reconnect() {
+    _reconnect(code, reason, finalize) {
+
+        reason = reason || 'Unknown reason';
+
+        // Trigger event
+
+        this.onClose(code, reason);
+
+        // Clean up
+
+        this._cleanup(code);
+
+        // Check for non-recoverable codes
+
+        if (internals.nonRecoverableCodes.includes(code)) {
+            return finalize(new Error(code === 4004 ? 'Invalid token' : reason));
+        }
+
+        // Resolve disconnect()
+
+        if (this._disconnectCallback) {
+            const disconnectCallback = this._disconnectCallback;
+            this._disconnectCallback = null;
+            disconnectCallback();
+        }
+
+        // _disconnect() called
+
+        if (!this._reconnection) {
+            return;
+        }
 
         if (!this._reconnection.attempts) {
-            return this._disconnect();
+            return finalize(new Error('Maximum reconnection attempts reached'));
         }
 
         const reconnection = this._reconnection;
@@ -238,7 +284,7 @@ internals.Client = class {
 
         let payload;
         try {
-            payload = JSON.parse(message);
+            payload = JSON.parse(message.data);
         }
         catch (error) {
             return callback(new Error('Invalid JSON content'));
@@ -281,9 +327,7 @@ internals.Client = class {
         // Reconnection requested
 
         if (payload.op === internals.opCodes.reconnect) {
-            this._cleanup(4000);                                            // Unknown
-
-            return this._reconnect();
+            return this._reconnect(4000);
         }
 
         // Invalid session
@@ -315,9 +359,7 @@ internals.Client = class {
     _beat() {
 
         if (!this._heartbeatAcked) {
-            this._cleanup(4000);
-
-            return this._reconnect();
+            return this._reconnect(4000);
         }
 
         this._heartbeatAcked = false;
@@ -345,7 +387,8 @@ internals.Client = class {
 
         this._send({
             op: internals.opCodes.identify,
-            shards: this._shard,
+            shards: this.shard,
+            intents: this.intents,
             d: {
                 token,
                 properties: {
@@ -394,4 +437,17 @@ internals.Client = class {
             this._ws.send(JSON.stringify(payload));
         }
     }
+};
+
+internals.noop = () => { };
+
+internals.intents = function (intents) {
+
+    let finalIntents;
+    for (const intent of intents) {
+        const value = typeof intent === 'string' ? internals.intents[intent] : intent;
+        finalIntents |= value;
+    }
+
+    return finalIntents;
 };
