@@ -65,7 +65,8 @@ internals.schema = Jade.object({
         .allow(false)
         .default(),
 })
-    .required();
+    .required()
+    .label('Options');
 
 exports.client = function (url, options) {
 
@@ -160,20 +161,20 @@ internals.Client = class {
 
         // Event handlers
 
-        const onError = (error) => {
+        const onError = (event) => {
 
-            finalize(error);
+            finalize(event.error);
             this._reconnect();
         };
 
-        const onMessage = (message) => {
+        const onMessage = (event) => {
 
-            this._onMessage(message, finalize);
+            this._onMessage(event.data, finalize);
         };
 
-        const onClose = (code, reason) => {
+        const onClose = (event) => {
 
-            this._reconnect(code, reason, finalize);
+            this._reconnect(event.code, event.reason, finalize);
         };
 
         // Use compatible API with the browser
@@ -254,13 +255,13 @@ internals.Client = class {
 
         const reconnection = this._reconnection;
         reconnection.attempts--;
-        reconnection.wait += this._settings.reconnection.delay;
+        reconnection.wait += this._settings.reconnect.delay;
 
-        const timeout = Math.min(reconnection.wait, this._settings.reconnection.maxDelay);
+        const timeout = Math.min(reconnection.wait, this._settings.reconnect.maxDelay);
 
         this._reconnectionTimer = setTimeout(() => {
 
-            this._connect();
+            this._connect(finalize);
         }, timeout);
     }
 
@@ -282,16 +283,15 @@ internals.Client = class {
         this._ws.close();
     }
 
-    _onMessage(message, callback) {
+    _onMessage(payload, finalize) {
 
         // Parse message
 
-        let payload;
         try {
-            payload = JSON.parse(message.data);
+            payload = JSON.parse(payload);
         }
         catch (error) {
-            return callback(new Error('Invalid JSON content'));
+            return finalize(new Error('Invalid JSON content'));
         }
 
         // Assign new sequence number
@@ -353,7 +353,7 @@ internals.Client = class {
 
             if (event === 'READY') {
                 this.id = payload.d.session_id;
-                callback();
+                finalize();
             }
 
             this.onDispatch(event, payload.d);
