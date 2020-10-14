@@ -31,6 +31,7 @@ describe('client()', () => {
     it('should connect to gateway API', async () => {
 
         const sessionId = 'some_random_session_id';
+
         const cleanup = internals.gateway((socket, helpers) => {
 
             socket.on('message', (message) => {
@@ -54,7 +55,36 @@ describe('client()', () => {
         cleanup();
     });
 
-    it('should error on invalid tokens', async () => {
+    it('should connect after disconnecting intentionally', async () => {
+
+        const sessionId = 'some_random_session_id';
+
+        const cleanup = internals.gateway((socket, helpers) => {
+
+            socket.on('message', (message) => {
+
+                const payload = JSON.parse(message);
+
+                if (payload.op === internals.opCodes.identify) {
+                    helpers.ready(sessionId);
+                }
+            });
+
+            helpers.hello();
+        });
+
+        const client = Quartz.client(internals.url, { token: 'test' });
+
+        await client.connect();
+        await client.disconnect();
+        await client.connect();
+        expect(client.id).toBe(sessionId);
+
+        await client.disconnect();
+        cleanup();
+    });
+
+    it('should throw on invalid tokens', async () => {
 
         const cleanup = internals.gateway((socket, helpers) => {
 
@@ -78,7 +108,44 @@ describe('client()', () => {
         cleanup();
     });
 
-    it('should throw if maximum reconnection attempts is reached', async () => {
+    it('should throw on invalid json response', async () => {
+
+        const cleanup = internals.gateway((socket) => {
+
+            socket.send('{');               // Raw send. No JSON.parse()
+        });
+
+        const client = Quartz.client(internals.url, { token: 'test' });
+
+        await expect(client.connect()).rejects.toThrow('Invalid JSON content');
+
+        await client.disconnect();
+        cleanup();
+    });
+
+    it('should throw if server is unavailable', async () => {
+
+        const client = Quartz.client(internals.url, { token: 'test' });
+
+        await expect(client.connect()).rejects.toThrow('connect ECONNREFUSED 127.0.0.1:3000');
+    });
+
+    it('should throw if socket closes and reconnect is set to false', async () => {
+
+        const cleanup = internals.gateway((socket) => {
+
+            socket.close();
+        });
+
+        const client = Quartz.client(internals.url, { token: 'test', reconnect: false });
+
+        await expect(client.connect()).rejects.toThrow('Cannot connect to Discord gateway API');
+
+        await client.disconnect();
+        cleanup();
+    });
+
+    it('should throw if socket closes and has reached maximum attempts', async () => {
 
         const cleanup = internals.gateway((socket) => {
 
@@ -87,7 +154,41 @@ describe('client()', () => {
 
         const client = Quartz.client(internals.url, { token: 'test', reconnect: { attempts: 2 } });
 
-        await expect(client.connect()).rejects.toThrow('Maximum reconnection attempts reached');
+        await expect(client.connect()).rejects.toThrow('Cannot connect to Discord gateway API');
+
+        await client.disconnect();
+        cleanup();
+    });
+
+    it('should reconnect on socket close', async () => {
+
+        const sessionId = 'some_random_session_id';
+
+        let count = 0;
+        const cleanup = internals.gateway((socket, helpers) => {
+
+            count++;
+
+            if (count > 2) {
+                socket.on('message', (message) => {
+
+                    const payload = JSON.parse(message);
+
+                    if (payload.op === internals.opCodes.identify) {
+                        helpers.ready(sessionId);
+                    }
+                });
+
+                return helpers.hello();
+            }
+
+            socket.close();
+        });
+
+        const client = Quartz.client(internals.url, { token: 'test', reconnect: { attempts: 2 } });
+
+        await client.connect();
+        expect(client.id).toBe(sessionId);
 
         await client.disconnect();
         cleanup();
@@ -97,7 +198,27 @@ describe('client()', () => {
 
         it('should throw when called twice', async () => {
 
+            const cleanup = internals.gateway((socket, helpers) => {
 
+                socket.on('message', (message) => {
+
+                    const payload = JSON.parse(message);
+
+                    if (payload.op === internals.opCodes.identify) {
+                        helpers.ready();
+                    }
+                });
+
+                helpers.hello();
+            });
+
+            const client = Quartz.client(internals.url, { token: 'test' });
+
+            await client.connect();
+            expect(() => client.connect()).toThrow('Client is already connecting');
+
+            await client.disconnect();
+            cleanup();
         });
     });
 
@@ -125,17 +246,23 @@ describe('client()', () => {
 
             const original = console.log;
 
-            console.log = async function (logError) {
+            const promise = new Promise((resolve) => {
 
-                expect(logError).toBe(error);
+                console.log = async function (logError) {
 
-                console.log = original;
-                await client.disconnect();
-                cleanup();
-            };
+                    expect(logError).toBe(error);
+
+                    console.log = original;
+                    await client.disconnect();
+                    cleanup();
+                    resolve();
+                };
+            });
+
 
             await client.connect();
             client._ws.emit('error', error);
+            await promise;
         });
     });
 
@@ -187,37 +314,6 @@ describe('client()', () => {
 
             await client.connect();
             await promise;
-        });
-    });
-
-    describe('onOpen', () => {
-
-        it('should ran on connection opened', async () => {
-
-            const cleanup = internals.gateway();
-
-            const client = Quartz.client(internals.url, { token: 'test' });
-
-            const promise = new Promise((resolve) => {
-
-                client.onOpen = async function () {
-
-                    await client.disconnect();
-                    cleanup();
-                    resolve();
-                };
-            });
-
-            client.connect();
-            await promise;
-        });
-    });
-
-    describe('onClose', () => {
-
-        it('should ran on connection closed', async () => {
-
-
         });
     });
 });

@@ -47,6 +47,41 @@ const internals = {
         DIRECT_MESSAGE_REACTIONS: 1 << 13,
         DIRECT_MESSAGE_TYPING: 1 << 14,
     },
+
+    reasons: {
+        // WS default codes (https://github.com/Luka967/websocket-close-codes)
+
+        1000: 'Normal closure',
+        1001: 'Going away',
+        1002: 'Protocol error',
+        1003: 'Unsupported data',
+        1004: 'Reserved',
+        1005: 'No status received',
+        1006: 'Abnormal closure',
+        1007: 'Invalid frame payload data',
+        1008: 'Policy violation',
+        1009: 'Message too big',
+        1010: 'Mandatory extension',
+        1011: 'Internal server error',
+        1015: 'TLS handshake',
+
+        // Discord application codes (https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-close-event-codes)
+
+        4000: 'Unknown error',
+        4001: 'Unknown opcode',
+        4002: 'Decode error',
+        4003: 'Not authenticated',
+        4004: 'Invalid token',
+        4005: 'Already authenticated',
+        4007: 'Invalid seq',
+        4008: 'Rate limited',
+        4009: 'Session timed out',
+        4010: 'Invalid shard',
+        4011: 'Sharding required',
+        4012: 'Invalid API version',
+        4013: 'Invalid intent(s)',
+        4014: 'Disallowed intent(s)',
+    },
 };
 
 internals.schema = Jade.object({
@@ -92,8 +127,7 @@ internals.Client = class {
 
         // Event handlers
 
-        this.onOpen = internals.noop;
-        this.onClose = internals.noop;
+        this.onDisconnect = internals.noop;
         this.onError = (error) => console.log(error);
         this.onDispatch = internals.noop;
 
@@ -108,6 +142,7 @@ internals.Client = class {
         this._reconnection = null;                                      // Reconnection state
         this._remainingPayloads = internals.ratelimit.total;            // Remaining payloads until rate limited
         this._reconnectionTimer = null;                                 // Reconnection timeout
+        this._disconnectCallback = null;                                // Disconnect callback
     }
 
     connect() {
@@ -154,49 +189,70 @@ internals.Client = class {
                 return holder(error);
             }
 
-            if (error) {
-                this.onError(error);
-            }
+            this.onError(error);
         };
 
         // Event handlers
 
-        const onError = (event) => {
+        ws.onopen = () => {
 
-            finalize(event.error);
-            this._reconnect();
+            ws.onopen = null;
         };
 
-        const onMessage = (event) => {
+        ws.onerror = (event) => {
+
+            finalize(event.error);
+            ws.close();                                     // Call in case readyState not set to CLOSING internally to trigger reconnection
+        };
+
+        ws.onmessage = (event) => {
 
             this._onMessage(event.data, finalize);
         };
 
-        const onClose = (event) => {
+        ws.onclose = (event) => {
 
-            this._reconnect(event.code, event.reason, finalize);
+            const connectionClosed = Boolean(ws.onopen);            // Store before cleanup
+
+            // Cleanup
+
+            this._cleanup();
+
+            // Stop reconnecting if connection closed (Error already handled in onerror)
+
+            if (connectionClosed) {
+                return;
+            }
+
+            const code = event.code;
+            const reason = internals.reasons[event.code] || 'Unknown reason';
+
+            // Trigger event
+
+            this.onDisconnect(code, reason);
+
+            // Check for non-recoverable codes
+
+            if (internals.nonRecoverableCodes.includes(code)) {
+                return finalize(new Error(reason));
+            }
+
+            // Resolve disconnect()
+
+            if (this._disconnectCallback) {
+                const disconnectCallback = this._disconnectCallback;
+                this._disconnectCallback = null;
+                return disconnectCallback();
+            }
+
+            this._reconnect(finalize);
         };
-
-        // Use compatible API with the browser
-
-        ws.onopen = this.onOpen;
-        ws.onerror = onError;
-        ws.onmessage = onMessage;
-        ws.onclose = onClose;
     }
 
-    _cleanup(code) {
-
-        // Already cleaned up
-
-        if (!this._ws) {
-            return;
-        }
+    _cleanup() {
 
         const ws = this._ws;
         this._ws = null;
-
-        ws.close(code);
 
         ws.onopen = null;
         ws.onerror = null;
@@ -217,43 +273,25 @@ internals.Client = class {
         this._ratelimitTimer = null;
     }
 
-    _reconnect(code, reason, finalize) {
-
-        reason = reason || 'Unknown reason';
-
-        // Trigger event
-
-        this.onClose(code, reason);
-
-        // Clean up
-
-        this._cleanup(code);
-
-        // Check for non-recoverable codes
-
-        if (internals.nonRecoverableCodes.includes(code)) {
-            return finalize(new Error(code === 4004 ? 'Invalid token' : reason));
-        }
-
-        // Resolve disconnect()
-
-        if (this._disconnectCallback) {
-            const disconnectCallback = this._disconnectCallback;
-            this._disconnectCallback = null;
-            disconnectCallback();
-        }
-
-        // _disconnect() called
-
-        if (!this._reconnection) {
-            return;
-        }
-
-        if (!this._reconnection.attempts) {
-            return finalize(new Error('Maximum reconnection attempts reached'));
-        }
+    _reconnect(finalize) {
 
         const reconnection = this._reconnection;
+
+        // _disconnect() called (probably from unrecoverable invalid session) or reconnect is set to false
+
+        const error = new Error('Cannot connect to Discord gateway API');
+
+        if (!reconnection) {
+            return finalize(error);
+        }
+
+        if (!reconnection.attempts) {
+            this._disconnect();                  // Trigger this to clean up reconnectionTimer and reconnection state
+            return finalize(error);
+        }
+
+        // Reconnect
+
         reconnection.attempts--;
         reconnection.wait += this._settings.reconnect.delay;
 
@@ -267,12 +305,18 @@ internals.Client = class {
 
     _disconnect(callback) {
 
+        // Terminate reconnection (use this._ws.close() if reconnection is required)
+
         this._reconnection = null;
         clearTimeout(this._reconnectionTimer);
         this._reconnectionTimer = null;
 
         if (!this._ws) {
-            return callback();
+            if (callback) {
+                callback();
+            }
+
+            return;
         }
 
         if (callback) {
@@ -331,7 +375,7 @@ internals.Client = class {
         // Reconnection requested
 
         if (payload.op === internals.opCodes.reconnect) {
-            return this._reconnect(4000);
+            return this._ws.close(4000);
         }
 
         // Invalid session
@@ -363,7 +407,7 @@ internals.Client = class {
     _beat() {
 
         if (!this._heartbeatAcked) {
-            return this._reconnect(4000);
+            return this._ws.close(4000);
         }
 
         this._heartbeatAcked = false;
@@ -458,4 +502,9 @@ internals.intents = function (intents) {
     }
 
     return finalIntents;
+};
+
+internals.reason = function (code) {
+
+    return internals.reasons[code] || 'Unknown reason';
 };
