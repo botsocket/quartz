@@ -147,6 +147,7 @@ internals.Client = class {
         this._remainingPayloads = internals.ratelimit.total;            // Remaining payloads until rate limited
         this._reconnectionTimer = null;                                 // Reconnection timeout
         this._disconnectCallback = null;                                // Disconnect callback
+        this._closeExplanation = null;                                  // Close explanation
     }
 
     connect() {
@@ -193,7 +194,9 @@ internals.Client = class {
                 return holder(error);
             }
 
-            this.onError(error);
+            if (error) {
+                this.onError(error);
+            }
         };
 
         // Event handlers
@@ -233,7 +236,7 @@ internals.Client = class {
 
             // Trigger event
 
-            this.onDisconnect(code, reason);
+            this.onDisconnect({ code, reason, explanation: this._closeExplanation });
 
             // Check for non-recoverable codes
 
@@ -323,10 +326,7 @@ internals.Client = class {
             return;
         }
 
-        if (callback) {
-            this._disconnectCallback = callback;
-        }
-
+        this._disconnectCallback = callback;
         this._ws.close();
     }
 
@@ -378,7 +378,8 @@ internals.Client = class {
         // Reconnection requested
 
         if (payload.op === internals.opCodes.reconnect) {
-            return this._ws.close(4000, 'Reconnection requested');
+            this._closeExplanation = 'Reconnection requested';
+            return this._ws.close();
         }
 
         // Invalid session
@@ -390,30 +391,31 @@ internals.Client = class {
                 return this._identify();
             }
 
-            return this._disconnect();
+            this._closeExplanation = 'Invalid session';
+            return this._ws.close();
         }
 
-        // Dispatch
+        // Dispatch (all other gateway events have been handled)
 
-        if (payload.op === internals.opCodes.dispatch) {
-            const event = payload.t;
+        const event = payload.t;
 
-            if (event === 'READY') {
-                this.id = payload.d.session_id;
-            }
-
-            if (event === 'READY' || event === 'RESUMED') {
-                finalize();
-            }
-
-            this.onDispatch(event, payload.d);
+        if (event === 'READY') {
+            this.id = payload.d.session_id;
         }
+
+        if (event === 'READY' || event === 'RESUMED') {
+            finalize();
+        }
+
+        this.onDispatch(event, payload.d);
+
     }
 
     _beat() {
 
         if (!this._heartbeatAcked) {
-            return this._ws.close(4000, 'Heartbeat unacknowledged');
+            this._closeExplanation = 'Heartbeat unacknowledged';
+            return this._ws.close();
         }
 
         this._heartbeatAcked = false;
