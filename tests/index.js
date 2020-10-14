@@ -245,7 +245,6 @@ describe('client()', () => {
             const error = new Error('Test');
 
             const original = console.log;
-
             const promise = new Promise((resolve) => {
 
                 console.log = async function (logError) {
