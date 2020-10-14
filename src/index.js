@@ -3,9 +3,11 @@
 const Assert = require('@botsocket/bone/src/assert');
 const Jade = require('@botsocket/jade');
 
-const Ws = typeof window === 'undefined' ? require('ws') : WebSocket;       // eslint-disable-line no-undef
+let Ws;
 
 const internals = {
+    isBrowser: typeof window !== 'undefined',
+
     opCodes: {                                // https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-opcodes
         dispatch: 0,
         heartbeat: 1,
@@ -110,6 +112,8 @@ exports.client = function (url, options) {
 
 internals.Client = class {
     constructor(url, options) {
+
+        Ws = Ws || (internals.isBrowser ? WebSocket : require('ws'));   // eslint-disable-line no-undef
 
         Assert(typeof url === 'string', 'Url must be a string');
 
@@ -225,7 +229,7 @@ internals.Client = class {
             }
 
             const code = event.code;
-            const reason = internals.reasons[event.code] || 'Unknown reason';
+            const reason = event.reason || internals.reasons[event.code];
 
             // Trigger event
 
@@ -245,7 +249,7 @@ internals.Client = class {
                 return disconnectCallback();
             }
 
-            this._reconnect(finalize);
+            this._reconnect(code, reason, finalize);
         };
     }
 
@@ -273,13 +277,13 @@ internals.Client = class {
         this._ratelimitTimer = null;
     }
 
-    _reconnect(finalize) {
+    _reconnect(code, reason, finalize) {
 
         const reconnection = this._reconnection;
 
         // _disconnect() called (probably from unrecoverable invalid session) or reconnect is set to false
 
-        const error = new Error('Cannot connect to Discord gateway API');
+        const error = new Error(`Connection failed with code ${code} - ${reason}`);
 
         if (!reconnection) {
             return finalize(error);
@@ -322,7 +326,6 @@ internals.Client = class {
         if (callback) {
             this._disconnectCallback = callback;
         }
-
 
         this._ws.close();
     }
@@ -375,7 +378,7 @@ internals.Client = class {
         // Reconnection requested
 
         if (payload.op === internals.opCodes.reconnect) {
-            return this._ws.close(4000);
+            return this._ws.close(4000, 'Reconnection requested');
         }
 
         // Invalid session
@@ -397,6 +400,9 @@ internals.Client = class {
 
             if (event === 'READY') {
                 this.id = payload.d.session_id;
+            }
+
+            if (event === 'READY' || event === 'RESUMED') {
                 finalize();
             }
 
@@ -407,7 +413,7 @@ internals.Client = class {
     _beat() {
 
         if (!this._heartbeatAcked) {
-            return this._ws.close(4000);
+            return this._ws.close(4000, 'Heartbeat unacknowledged');
         }
 
         this._heartbeatAcked = false;
@@ -423,11 +429,7 @@ internals.Client = class {
         if (this.id) {
             return this._send({
                 op: internals.opCodes.resume,
-                d: {
-                    token,
-                    session_id: this.id,                    // eslint-disable-line camelcase
-                    seq: this._seq,
-                },
+                d: { token, session_id: this.id, seq: this._seq },              // eslint-disable-line camelcase
             });
         }
 
@@ -440,9 +442,9 @@ internals.Client = class {
             d: {
                 token,
                 properties: {
-                    $os: process.platform,
-                    $browser: 'nebula',
-                    $device: 'nebula',
+                    $os: internals.isBrowser ? 'browser' : process.platform,
+                    $browser: 'quartz',
+                    $device: 'quartz',
                 },
             },
         });
@@ -502,9 +504,4 @@ internals.intents = function (intents) {
     }
 
     return finalIntents;
-};
-
-internals.reason = function (code) {
-
-    return internals.reasons[code] || 'Unknown reason';
 };
