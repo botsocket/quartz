@@ -3,24 +3,11 @@
 'use strict';
 
 const Bone = require('@botsocket/bone');
-const Ws = require('ws');
 
 const Quartz = require('../src');
+const Utils = require('./utils');
 
-const internals = {
-    url: 'ws://localhost:3000',
-
-    opCodes: {                                // https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-opcodes
-        dispatch: 0,
-        heartbeat: 1,
-        identify: 2,
-        resume: 6,
-        reconnect: 7,
-        invalidSession: 9,
-        hello: 10,
-        heartbeatAck: 11,
-    },
-};
+const internals = {};
 
 describe('client()', () => {
 
@@ -30,7 +17,7 @@ describe('client()', () => {
         const token = 'some_random_token';
         const seq = 1;
 
-        const cleanup = internals.gateway((socket, helpers) => {
+        const cleanup = Utils.gateway((socket, helpers) => {
 
             socket.on('message', (message) => {
 
@@ -49,7 +36,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(internals.url, { token });
+        const client = Quartz.client(Utils.url, { token });
 
         await client.connect();
         expect(client.id).toBe(sessionId);
@@ -63,7 +50,7 @@ describe('client()', () => {
 
         const sessionId = 'some_random_session_id';
 
-        const cleanup = internals.gateway((socket, helpers) => {
+        const cleanup = Utils.gateway((socket, helpers) => {
 
             socket.on('message', () => {
 
@@ -73,7 +60,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(internals.url, { token: 'test' });
+        const client = Quartz.client(Utils.url, { token: 'test' });
 
         await client.connect();
         await client.disconnect();
@@ -86,7 +73,7 @@ describe('client()', () => {
 
     it('should throw on invalid tokens', async () => {
 
-        const cleanup = internals.gateway((socket, helpers) => {
+        const cleanup = Utils.gateway((socket, helpers) => {
 
             socket.on('message', () => {
 
@@ -96,7 +83,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(internals.url, { token: 'test' });
+        const client = Quartz.client(Utils.url, { token: 'test' });
 
         await expect(client.connect()).rejects.toThrow('Invalid token');
 
@@ -106,12 +93,12 @@ describe('client()', () => {
 
     it('should throw on invalid json response', async () => {
 
-        const cleanup = internals.gateway((socket) => {
+        const cleanup = Utils.gateway((socket) => {
 
             socket.send('{');               // Raw send. No JSON.parse()
         });
 
-        const client = Quartz.client(internals.url, { token: 'test' });
+        const client = Quartz.client(Utils.url, { token: 'test' });
 
         await expect(client.connect()).rejects.toThrow('Invalid JSON content');
 
@@ -121,7 +108,7 @@ describe('client()', () => {
 
     it('should throw if server is unavailable', async () => {
 
-        const client = Quartz.client(internals.url, { token: 'test' });
+        const client = Quartz.client(Utils.url, { token: 'test' });
 
         await expect(client.connect()).rejects.toThrow('connect ECONNREFUSED 127.0.0.1:3000');
 
@@ -130,12 +117,12 @@ describe('client()', () => {
 
     it('should throw if socket closes and reconnect is set to false', async () => {
 
-        const cleanup = internals.gateway((socket) => {
+        const cleanup = Utils.gateway((socket) => {
 
             socket.close();
         });
 
-        const client = Quartz.client(internals.url, { token: 'test', reconnect: false });
+        const client = Quartz.client(Utils.url, { token: 'test', reconnect: false });
 
         await expect(client.connect()).rejects.toThrow('Connection failed with code 1005 - No status received');
 
@@ -145,12 +132,12 @@ describe('client()', () => {
 
     it('should throw if socket closes and has reached maximum attempts', async () => {
 
-        const cleanup = internals.gateway((socket) => {
+        const cleanup = Utils.gateway((socket) => {
 
             socket.close();
         });
 
-        const client = Quartz.client(internals.url, { token: 'test', reconnect: { attempts: 2, delay: 10 } });
+        const client = Quartz.client(Utils.url, { token: 'test', reconnect: { attempts: 2, delay: 10 } });
 
         await expect(client.connect()).rejects.toThrow('Connection failed with code 1005 - No status received');
 
@@ -163,7 +150,7 @@ describe('client()', () => {
         const sessionId = 'some_random_session_id';
 
         let count = 0;
-        const cleanup = internals.gateway((socket, helpers) => {
+        const cleanup = Utils.gateway((socket, helpers) => {
 
             if (count === 2) {
                 socket.on('message', () => {
@@ -178,7 +165,7 @@ describe('client()', () => {
             count++;
         });
 
-        const client = Quartz.client(internals.url, { token: 'test', reconnect: { attempts: 2, delay: 10 } });
+        const client = Quartz.client(Utils.url, { token: 'test', reconnect: { attempts: 2, delay: 10 } });
 
         await client.connect();
         expect(client.id).toBe(sessionId);
@@ -189,13 +176,13 @@ describe('client()', () => {
 
     it('should reconnect and then throw', async () => {
 
-        const cleanup = internals.gateway((socket) => {
+        const cleanup = Utils.gateway((socket) => {
 
             socket.close();
             cleanup();
         });
 
-        const client = Quartz.client(internals.url, { token: 'test', reconnect: { attempts: 1, delay: 10 } });
+        const client = Quartz.client(Utils.url, { token: 'test', reconnect: { attempts: 1, delay: 10 } });
 
         await expect(client.connect()).rejects.toThrow('connect ECONNREFUSED 127.0.0.1:3000');
 
@@ -209,14 +196,14 @@ describe('client()', () => {
         let count = 0;
         const promise = new Promise((resolve) => {
 
-            const cleanup = internals.gateway((socket, helpers) => {
+            const cleanup = Utils.gateway((socket, helpers) => {
 
                 socket.on('message', async (message) => {
 
                     if (count === 1) {
                         const payload = JSON.parse(message);
 
-                        expect(payload.op).toBe(internals.opCodes.heartbeat);
+                        expect(payload.op).toBe(Utils.opCodes.heartbeat);
                         expect(payload.d).toBe(seq);
 
                         await client.disconnect();
@@ -235,7 +222,7 @@ describe('client()', () => {
             });
         });
 
-        const client = Quartz.client(internals.url, { token: 'test' });
+        const client = Quartz.client(Utils.url, { token: 'test' });
 
         await client.connect();
         await promise;
@@ -246,7 +233,7 @@ describe('client()', () => {
         let count = 0;
         const promise = new Promise((resolve) => {
 
-            const cleanup = internals.gateway((socket, helpers) => {
+            const cleanup = Utils.gateway((socket, helpers) => {
 
                 socket.on('message', async (message) => {
 
@@ -257,7 +244,7 @@ describe('client()', () => {
                     const assertHeartbeatPayload = function () {
 
                         const payload = JSON.parse(message);
-                        expect(payload.op).toBe(internals.opCodes.heartbeat);
+                        expect(payload.op).toBe(Utils.opCodes.heartbeat);
                     };
 
                     if (count === 1) {
@@ -279,7 +266,7 @@ describe('client()', () => {
             });
         });
 
-        const client = Quartz.client(internals.url, { token: 'test' });
+        const client = Quartz.client(Utils.url, { token: 'test' });
 
         await client.connect();
         await promise;
@@ -287,7 +274,7 @@ describe('client()', () => {
 
     it('should disconnect if heartbeat is not acknowledged', async () => {
 
-        const cleanup = internals.gateway((socket, helpers) => {
+        const cleanup = Utils.gateway((socket, helpers) => {
 
             socket.on('message', () => {
 
@@ -297,7 +284,7 @@ describe('client()', () => {
             helpers.hello(10);             // Set to a short amount of time to cause the connection to close quickly due to Heartbeat unacknowledged
         });
 
-        const client = Quartz.client(internals.url, { token: 'test', reconnect: false });
+        const client = Quartz.client(Utils.url, { token: 'test', reconnect: false });
 
         client.onError = () => { };        // Prevent console.log when running tests
 
@@ -320,7 +307,7 @@ describe('client()', () => {
     it('should reconnect if requested', async () => {
 
         let count = 0;
-        const cleanup = internals.gateway((socket, helpers) => {
+        const cleanup = Utils.gateway((socket, helpers) => {
 
             socket.on('message', () => {
 
@@ -335,7 +322,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(internals.url, { token: 'test', reconnect: { delay: 10 } });
+        const client = Quartz.client(Utils.url, { token: 'test', reconnect: { delay: 10 } });
 
         // Finish before client.connect() resolves
 
@@ -357,7 +344,7 @@ describe('client()', () => {
         const sessionId = 'some_random_session_id';
         const token = 'some_random_token';
 
-        const cleanup = internals.gateway((socket, helpers) => {
+        const cleanup = Utils.gateway((socket, helpers) => {
 
             socket.on('message', (message) => {
 
@@ -373,7 +360,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(internals.url, { token, id: sessionId });
+        const client = Quartz.client(Utils.url, { token, id: sessionId });
 
         await client.connect();
 
@@ -388,7 +375,7 @@ describe('client()', () => {
         const seq = 1;
 
         let count = 0;
-        const cleanup = internals.gateway((socket, helpers) => {
+        const cleanup = Utils.gateway((socket, helpers) => {
 
             socket.on('message', async (message) => {
 
@@ -412,7 +399,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(internals.url, { token });
+        const client = Quartz.client(Utils.url, { token });
 
         const promise = new Promise((resolve) => {
 
@@ -433,7 +420,7 @@ describe('client()', () => {
 
     it('should disconnect if session is not resumable', async () => {
 
-        const cleanup = internals.gateway((socket, helpers) => {
+        const cleanup = Utils.gateway((socket, helpers) => {
 
             socket.on('message', async () => {
 
@@ -446,7 +433,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(internals.url, { token: 'test', reconnect: false });
+        const client = Quartz.client(Utils.url, { token: 'test', reconnect: false });
 
         client.onError = () => { };             // Prevent console.log when running tests
 
@@ -470,7 +457,7 @@ describe('client()', () => {
 
         const intents = 1 << 0;
 
-        const cleanup = internals.gateway((socket, helpers) => {
+        const cleanup = Utils.gateway((socket, helpers) => {
 
             socket.on('message', (message) => {
 
@@ -484,7 +471,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(internals.url, { token: 'test', intents });
+        const client = Quartz.client(Utils.url, { token: 'test', intents });
 
         await client.connect();
         expect(client.intents).toBe(intents);
@@ -497,7 +484,7 @@ describe('client()', () => {
 
         const intents = 1 << 0 | 1 << 1;
 
-        const cleanup = internals.gateway((socket, helpers) => {
+        const cleanup = Utils.gateway((socket, helpers) => {
 
             socket.on('message', (message) => {
 
@@ -511,7 +498,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(internals.url, { token: 'test', intents: [1 << 0, 1 << 1] });
+        const client = Quartz.client(Utils.url, { token: 'test', intents: [1 << 0, 1 << 1] });
 
         await client.connect();
         expect(client.intents).toBe(intents);
@@ -524,7 +511,7 @@ describe('client()', () => {
 
         const intents = 1 << 0;
 
-        const cleanup = internals.gateway((socket, helpers) => {
+        const cleanup = Utils.gateway((socket, helpers) => {
 
             socket.on('message', (message) => {
 
@@ -538,7 +525,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(internals.url, { token: 'test', intents: 'GUILDS' });
+        const client = Quartz.client(Utils.url, { token: 'test', intents: 'GUILDS' });
 
         await client.connect();
         expect(client.intents).toBe(intents);
@@ -551,7 +538,7 @@ describe('client()', () => {
 
         const intents = 1 << 0 | 1 << 1 | 1 << 2;
 
-        const cleanup = internals.gateway((socket, helpers) => {
+        const cleanup = Utils.gateway((socket, helpers) => {
 
             socket.on('message', (message) => {
 
@@ -565,7 +552,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(internals.url, { token: 'test', intents: ['GUILDS', 'GUILD_MEMBERS', 1 << 2] });
+        const client = Quartz.client(Utils.url, { token: 'test', intents: ['GUILDS', 'GUILD_MEMBERS', 1 << 2] });
 
         await client.connect();
         expect(client.intents).toBe(intents);
@@ -578,7 +565,7 @@ describe('client()', () => {
 
         it('should throw when called twice', async () => {
 
-            const cleanup = internals.gateway((socket, helpers) => {
+            const cleanup = Utils.gateway((socket, helpers) => {
 
                 socket.on('message', () => {
 
@@ -588,7 +575,7 @@ describe('client()', () => {
                 helpers.hello();
             });
 
-            const client = Quartz.client(internals.url, { token: 'test' });
+            const client = Quartz.client(Utils.url, { token: 'test' });
 
             await client.connect();
             expect(() => client.connect()).toThrow('Client is already connecting');
@@ -602,7 +589,7 @@ describe('client()', () => {
 
         it('should throw if not connected', () => {
 
-            const client = Quartz.client(internals.url, { token: 'test' });
+            const client = Quartz.client(Utils.url, { token: 'test' });
 
             expect(() => client.send({ a: 1 })).toThrow('Cannot send payloads before connecting');
         });
@@ -612,7 +599,7 @@ describe('client()', () => {
             const total = 120;
             const extra = 10;
 
-            const cleanup = internals.gateway((socket, helpers) => {
+            const cleanup = Utils.gateway((socket, helpers) => {
 
                 socket.on('message', () => {
 
@@ -633,7 +620,7 @@ describe('client()', () => {
                 }
             };
 
-            const client = Quartz.client(internals.url, { token: 'test' });
+            const client = Quartz.client(Utils.url, { token: 'test' });
 
             const promise = client.connect();
 
@@ -687,7 +674,7 @@ describe('client()', () => {
 
         it('should log to console by default', async () => {
 
-            const cleanup = internals.gateway((socket, helpers) => {
+            const cleanup = Utils.gateway((socket, helpers) => {
 
                 socket.on('message', () => {
 
@@ -697,7 +684,7 @@ describe('client()', () => {
                 helpers.hello();
             });
 
-            const client = Quartz.client(internals.url, { token: 'test', reconnect: false });
+            const client = Quartz.client(Utils.url, { token: 'test', reconnect: false });
 
             const error = new Error('Test');
 
@@ -728,7 +715,7 @@ describe('client()', () => {
 
             const data = { a: 1 };
             const event = 'ANOTHER_EVENT';
-            const cleanup = internals.gateway((socket, helpers) => {
+            const cleanup = Utils.gateway((socket, helpers) => {
 
                 socket.on('message', async () => {
 
@@ -741,7 +728,7 @@ describe('client()', () => {
                 helpers.hello();
             });
 
-            const client = Quartz.client(internals.url, { token: 'test' });
+            const client = Quartz.client(Utils.url, { token: 'test' });
 
             let count = 0;
             const promise = new Promise((resolve) => {
@@ -771,81 +758,4 @@ describe('client()', () => {
 internals.wait = function (ms) {
 
     return new Promise((resolve) => setTimeout(resolve, ms));
-};
-
-internals.gateway = function (handler) {
-
-    const server = new Ws.Server({ port: 3000 });
-
-    server.on('connection', (socket) => {
-
-        if (!handler) {
-            return;
-        }
-
-        const send = function (payload) {
-
-            socket.send(JSON.stringify(payload));
-        };
-
-        const hello = function (interval) {
-
-            send({ op: internals.opCodes.hello, d: { heartbeat_interval: interval || 20000 } });            // Set interval to 20s by default, which is long enough to not cause the connection to close with Heartbeat unacknowledged
-        };
-
-        const requestHeartbeat = function () {
-
-            send({ op: internals.opCodes.heartbeat });
-        };
-
-        const ackHeartbeat = function () {
-
-            send({ op: internals.opCodes.heartbeatAck });
-        };
-
-        const requestReconnection = function () {
-
-            send({ op: internals.opCodes.reconnect });
-        };
-
-        const invalidSession = function (resumable) {
-
-            send({ op: internals.opCodes.invalidSession, d: resumable });
-        };
-
-        const dispatch = function (event, data, seq) {
-
-            send({ op: internals.opCodes.dispatch, t: event, d: data, s: seq });
-        };
-
-        const ready = function (sessionId, seq) {
-
-            dispatch('READY', { session_id: sessionId }, seq);
-        };
-
-        const resumed = function (seq) {
-
-            dispatch('RESUMED', null, seq);
-        };
-
-        const helpers = {
-            hello,
-            requestHeartbeat,
-            ackHeartbeat,
-            requestReconnection,
-            invalidSession,
-            dispatch,
-            resumed,
-            ready,
-        };
-
-        handler(socket, helpers);
-
-    });
-
-    return function () {
-
-        server.close();
-        server.removeAllListeners();
-    };
 };
