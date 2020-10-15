@@ -1,7 +1,3 @@
-/**
- * @jest-environment node
- */
-
 /* eslint-disable camelcase, no-global-assign, require-atomic-updates */
 
 'use strict';
@@ -40,6 +36,8 @@ describe('client()', () => {
 
                 const payload = JSON.parse(message);
 
+                expect(payload.shards[0]).toBe(0);
+                expect(payload.shards[1]).toBe(1);
                 expect(payload.d.token).toBe(token);
                 expect(payload.d.properties.$os).toBe(process.platform);
                 expect(payload.d.properties.$browser).toBe('quartz');
@@ -243,6 +241,50 @@ describe('client()', () => {
         await promise;
     });
 
+    it('should acknowledge heartbeat', async () => {
+
+        let count = 0;
+        const promise = new Promise((resolve) => {
+
+            const cleanup = internals.gateway((socket, helpers) => {
+
+                socket.on('message', async (message) => {
+
+                    if (count === 0) {
+                        helpers.ready();
+                    }
+
+                    const assertHeartbeatPayload = function () {
+
+                        const payload = JSON.parse(message);
+                        expect(payload.op).toBe(internals.opCodes.heartbeat);
+                    };
+
+                    if (count === 1) {
+                        assertHeartbeatPayload();
+                        helpers.ackHeartbeat();
+                    }
+
+                    if (count === 2) {
+                        assertHeartbeatPayload();
+                        await client.disconnect();
+                        cleanup();
+                        return resolve();
+                    }
+
+                    count++;
+                });
+
+                helpers.hello(100);
+            });
+        });
+
+        const client = Quartz.client(internals.url, { token: 'test' });
+
+        await client.connect();
+        await promise;
+    });
+
     it('should disconnect if heartbeat is not acknowledged', async () => {
 
         const cleanup = internals.gateway((socket, helpers) => {
@@ -424,6 +466,114 @@ describe('client()', () => {
         await promise;
     });
 
+    it('should accept single numeric intents', async () => {
+
+        const intents = 1 << 0;
+
+        const cleanup = internals.gateway((socket, helpers) => {
+
+            socket.on('message', (message) => {
+
+                const payload = JSON.parse(message);
+
+                expect(payload.intents).toBe(intents);
+
+                helpers.ready();
+            });
+
+            helpers.hello();
+        });
+
+        const client = Quartz.client(internals.url, { token: 'test', intents });
+
+        await client.connect();
+        expect(client.intents).toBe(intents);
+
+        await client.disconnect();
+        cleanup();
+    });
+
+    it('should accept an array of numeric intents', async () => {
+
+        const intents = 1 << 0 | 1 << 1;
+
+        const cleanup = internals.gateway((socket, helpers) => {
+
+            socket.on('message', (message) => {
+
+                const payload = JSON.parse(message);
+
+                expect(payload.intents).toBe(intents);
+
+                helpers.ready();
+            });
+
+            helpers.hello();
+        });
+
+        const client = Quartz.client(internals.url, { token: 'test', intents: [1 << 0, 1 << 1] });
+
+        await client.connect();
+        expect(client.intents).toBe(intents);
+
+        await client.disconnect();
+        cleanup();
+    });
+
+    it('should accept single string intents', async () => {
+
+        const intents = 1 << 0;
+
+        const cleanup = internals.gateway((socket, helpers) => {
+
+            socket.on('message', (message) => {
+
+                const payload = JSON.parse(message);
+
+                expect(payload.intents).toBe(intents);
+
+                helpers.ready();
+            });
+
+            helpers.hello();
+        });
+
+        const client = Quartz.client(internals.url, { token: 'test', intents: 'GUILDS' });
+
+        await client.connect();
+        expect(client.intents).toBe(intents);
+
+        await client.disconnect();
+        cleanup();
+    });
+
+    it('should accept an array of string intents and numeric intents', async () => {
+
+        const intents = 1 << 0 | 1 << 1 | 1 << 2;
+
+        const cleanup = internals.gateway((socket, helpers) => {
+
+            socket.on('message', (message) => {
+
+                const payload = JSON.parse(message);
+
+                expect(payload.intents).toBe(intents);
+
+                helpers.ready();
+            });
+
+            helpers.hello();
+        });
+
+        const client = Quartz.client(internals.url, { token: 'test', intents: ['GUILDS', 'GUILD_MEMBERS', 1 << 2] });
+
+        await client.connect();
+        expect(client.intents).toBe(intents);
+
+        await client.disconnect();
+        cleanup();
+    });
+
     describe('connect()', () => {
 
         it('should throw when called twice', async () => {
@@ -443,6 +593,91 @@ describe('client()', () => {
             await client.connect();
             expect(() => client.connect()).toThrow('Client is already connecting');
 
+            await client.disconnect();
+            cleanup();
+        });
+    });
+
+    describe('send()', () => {
+
+        it('should throw if not connected', () => {
+
+            const client = Quartz.client(internals.url, { token: 'test' });
+
+            expect(() => client.send({ a: 1 })).toThrow('Cannot send payloads before connecting');
+        });
+
+        it('should not hit rate limit', async () => {
+
+            const total = 120;
+            const extra = 10;
+
+            const cleanup = internals.gateway((socket, helpers) => {
+
+                socket.on('message', () => {
+
+                    helpers.ready();
+                });
+
+                helpers.hello();
+            });
+
+            // Retrieve the rate limit reset function
+
+            let resetFn;
+            const originalSetInterval = global.setInterval;
+            global.setInterval = function (fn, ms) {
+
+                if (ms === 60 * 1000) {             // We know this is the timer for rate limit based on the interval
+                    resetFn = fn;
+                }
+            };
+
+            const client = Quartz.client(internals.url, { token: 'test' });
+
+            const promise = client.connect();
+
+            // Mock ws.send() to count the number of times it was called
+
+            let count = 0;
+            const originalSend = client._ws.send;
+            client._ws.send = function (payload) {
+
+                count++;
+                originalSend.call(this, payload);
+            };
+
+            // Connect
+
+            await promise;
+
+            // Send payloads
+
+            const payloads = new Array(total + extra).fill({ a: 1 });
+            for (const payload of payloads) {
+                client.send(payload);
+            }
+
+            expect(client._remainingPayloads).toBe(0);
+            expect(client._payloads.length).toBe(extra + 1);                // +1 because we are also sending the identify payload
+            expect(count).toBe(total);
+
+            // Reset
+
+            count = 0;
+            await internals.wait(100);
+            resetFn();
+
+            // Continue sending
+
+            expect(client._payloads.length).toBe(0);
+            expect(client._remainingPayloads).toBe(total - extra - 1);      // -1 because we are also sending the identify payload
+            expect(count).toBe(extra + 1);                                  // +1 because we are also sending the identify payload
+
+            // Cleanup
+
+            global.setInterval = originalSetInterval;
+            client._ws.send = originalSend;
             await client.disconnect();
             cleanup();
         });
@@ -555,12 +790,17 @@ internals.gateway = function (handler) {
 
         const hello = function (interval) {
 
-            send({ op: internals.opCodes.hello, d: { heartbeat_interval: interval || 30000 } });            // Set interval to 30s by default, which is long enough to not cause the connection to close with Heartbeat unacknowledged
+            send({ op: internals.opCodes.hello, d: { heartbeat_interval: interval || 20000 } });            // Set interval to 20s by default, which is long enough to not cause the connection to close with Heartbeat unacknowledged
         };
 
         const requestHeartbeat = function () {
 
             send({ op: internals.opCodes.heartbeat });
+        };
+
+        const ackHeartbeat = function () {
+
+            send({ op: internals.opCodes.heartbeatAck });
         };
 
         const requestReconnection = function () {
@@ -591,6 +831,7 @@ internals.gateway = function (handler) {
         const helpers = {
             hello,
             requestHeartbeat,
+            ackHeartbeat,
             requestReconnection,
             invalidSession,
             dispatch,

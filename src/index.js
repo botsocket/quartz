@@ -121,7 +121,7 @@ internals.Client = class {
 
         this.url = url;
         this.shard = settings.shard || [0, 1];                          // Gateway shard
-        this.intents = internals.intents(settings.intents);             // Gateway intents
+        this.intents = internals.calculateIntents(settings.intents);    // Gateway intents
         delete settings.intents;
         delete settings.shard;
 
@@ -419,7 +419,7 @@ internals.Client = class {
         }
 
         this._heartbeatAcked = false;
-        this._send({ op: internals.opCodes.heartbeat, d: this._seq });
+        this.send({ op: internals.opCodes.heartbeat, d: this._seq });
     }
 
     _identify() {
@@ -429,7 +429,7 @@ internals.Client = class {
         // Resume if possible
 
         if (this.id) {
-            return this._send({
+            return this.send({
                 op: internals.opCodes.resume,
                 d: { token, session_id: this.id, seq: this._seq },              // eslint-disable-line camelcase
             });
@@ -437,7 +437,7 @@ internals.Client = class {
 
         // Identify new session
 
-        this._send({
+        this.send({
             op: internals.opCodes.identify,
             shards: this.shard,
             intents: this.intents,
@@ -452,25 +452,19 @@ internals.Client = class {
         });
     }
 
-    _send(payload) {
+    send(payload) {
+
+        Assert(this._ws, 'Cannot send payloads before connecting');
 
         this._payloads.push(payload);
 
         if (!this._ratelimitTimer) {
-            const setupTimer = () => {
 
-                this._ratelimitTimer = setTimeout(() => {
+            this._ratelimitTimer = setInterval(() => {
 
-                    this._remainingPayloads = internals.ratelimit.total;
-
-                    clearTimeout(this._ratelimitTimer);
-                    this._processPendingPayloads();
-
-                    setupTimer();
-                }, internals.ratelimit.timeout);
-            };
-
-            setupTimer();
+                this._remainingPayloads = internals.ratelimit.total;
+                this._processPendingPayloads();
+            }, internals.ratelimit.timeout);
         }
 
         this._processPendingPayloads();
@@ -493,7 +487,7 @@ internals.Client = class {
 
 internals.noop = () => { };
 
-internals.intents = function (intents) {
+internals.calculateIntents = function (intents) {
 
     if (!intents) {
         return;
