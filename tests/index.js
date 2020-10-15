@@ -1,4 +1,4 @@
-/* eslint-disable camelcase, no-global-assign, require-atomic-updates */
+/* eslint-disable require-atomic-updates */
 
 'use strict';
 
