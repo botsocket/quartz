@@ -493,11 +493,11 @@ internals.calculateIntents = function (intents) {
         return;
     }
 
-    let finalIntents = 0;
+    let resolved = 0;
     for (const intent of intents) {
         const value = typeof intent === 'string' ? internals.intents[intent] : intent;
-        finalIntents |= value;
+        resolved |= value;
     }
 
-    return finalIntents;
+    return resolved;
 };
