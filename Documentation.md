@@ -44,6 +44,7 @@ client.connect();
     -   [`client.url`](#clienturl)
     -   [`client.shard`](#clientshard)
     -   [`client.intents`](#clientintents)
+- [`Available intents`](#available-intents)
 
 ### `client(url, options)`
 
@@ -53,8 +54,8 @@ Creates a Gateway client where:
 -   `options`: Connection options where:
     -   `token`: The authentication token.
     -   `id`: The session id to resume connection. Optional.
-    -   `shard`: A tuple containing sharding information. The first item is the current shard id and the second item is the total number of shards. Optional.
-    -   `intents`: [Gateway intents](https://discord.com/developers/docs/topics/gateway#gateway-intents). Can be any of [these](#intents), their corresponding values or an array of both types. Optional.
+    -   `shard`: A tuple containing sharding information. The first item is the current shard id and the second item is the total number of shards. Defaults to `[0, 1]`
+    -   `intents`: [Gateway intents](https://discord.com/developers/docs/topics/gateway#gateway-intents). Can be any of [these](#available-intents), their corresponding values or an array of both types. Optional.
     -   `reconnect`: Reconnection options where:
         -   `attempts`: The number of reconnection attempts. Defaults to `Infinity`.
         -   `delay`: The amount of time in milliseconds to backoff before reconnecting. Defaults to `1000`.
@@ -78,7 +79,7 @@ const client = Quartz.client('wss://gateway.discord.gg', {
 
 [Back to top](#api)
 
-### `client.connect()`
+#### `client.connect()`
 
 Connects to Discord Gateway API. Returns a promise that when resolved signifies a successful connection.
 
@@ -95,7 +96,7 @@ async function connect() {
 
 [Back to top](#api)
 
-### `client.disconnect()`
+#### `client.disconnect()`
 
 Closes the connection to Discord Gateway API and performs necessary cleanup. Returns a promise that when resolved signifies a successful disconnection.
 
@@ -115,7 +116,7 @@ async function connect() {
 
 [Back to top](#api)
 
-### `client.send(payload)`
+#### `client.send(payload)`
 
 Sends a payload to Discord Gateway API where:
 
@@ -138,7 +139,7 @@ async function connect() {
 
 [Back to top](#api)
 
-### `client.onDispatch`
+#### `client.onDispatch`
 
 Listener invoked when Discord replies with the [dispatch event](https://discord.com/developers/docs/topics/gateway#sending-payloads-example-gateway-dispatch). Called with:
 
@@ -168,7 +169,7 @@ client.connect();
 
 [Back to top](#api)
 
-### `client.onDisconnect`
+#### `client.onDisconnect`
 
 Listener invoked whenever the connection is closed, including closures before establishing reconnections. Called with:
 
@@ -192,7 +193,7 @@ client.connect();
 
 [Back to top](#api)
 
-### `client.onError`
+#### `client.onError`
 
 Listener invoked whenever an error is encountered. Defaults to `(error) => console.log(error);`. Called with:
 
@@ -213,26 +214,49 @@ client.connect();
 
 [Back to top](#api)
 
-### `client.id`
+#### `client.id`
 
 Session id.
 
 [Back to top](#api)
 
-### `client.url`
+#### `client.url`
 
 Discord gateway url used to establish the connection.
 
 [Back to top](#api)
 
-### `client.shard`
+#### `client.shard`
 
 Sharding information of format `[currentShardId, totalNoOfShards]`
 
 [Back to top](#api)
 
-### `client.intents`
+#### `client.intents`
 
 Resolved intents.
 
 [Back to top](#api)
+
+### Available intents
+
+Below are the available intent names and their corresponding values:
+
+```
+GUILDS: 1 << 0,
+GUILD_MEMBERS: 1 << 1,
+GUILD_BANS: 1 << 2,
+GUILD_EMOJIS: 1 << 3,
+GUILD_INTEGRATIONS: 1 << 4,
+GUILD_WEBHOOKS: 1 << 5,
+GUILD_INVITES: 1 << 6,
+GUILD_VOICE_STATES: 1 << 7,
+GUILD_PRESENCES: 1 << 8,
+GUILD_MESSAGES: 1 << 9,
+GUILD_MESSAGE_REACTIONS: 1 << 10,
+GUILD_MESSAGE_TYPING: 1 << 11,
+DIRECT_MESSAGES: 1 << 12,
+DIRECT_MESSAGE_REACTIONS: 1 << 13,
+DIRECT_MESSAGE_TYPING: 1 << 14,
+```
+
