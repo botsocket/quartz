@@ -95,7 +95,7 @@ internals.schema = Jade.object({
         .single(),
 
     reconnect: Jade.obj({
-        attempts: Jade.num().default(Infinity),
+        attempts: Jade.num().allow(Infinity).default(Infinity),
         delay: Jade.num().default(1000),
         maxDelay: Jade.num().min(Jade.ref('delay')).default(5000),
     })
