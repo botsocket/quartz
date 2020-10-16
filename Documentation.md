@@ -44,7 +44,7 @@ client.connect();
     -   [`client.url`](#clienturl)
     -   [`client.shard`](#clientshard)
     -   [`client.intents`](#clientintents)
-- [`Available intents`](#available-intents)
+- [Available intents](#available-intents)
 
 ### `client(url, options)`
 
