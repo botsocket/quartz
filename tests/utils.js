@@ -1,5 +1,3 @@
-/* eslint-disable camelcase */
-
 'use strict';
 
 const Ws = require('ws');

@@ -431,7 +431,7 @@ internals.Client = class {
         if (this.id) {
             return this.send({
                 op: internals.opCodes.resume,
-                d: { token, session_id: this.id, seq: this._seq },              // eslint-disable-line camelcase
+                d: { token, session_id: this.id, seq: this._seq },
             });
         }
 
