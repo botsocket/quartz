@@ -439,10 +439,10 @@ internals.Client = class {
 
         this.send({
             op: internals.opCodes.identify,
-            shards: this.shard,
-            intents: this.intents,
             d: {
                 token,
+                shards: this.shard,
+                intents: this.intents,
                 properties: {
                     $os: internals.isBrowser ? 'browser' : process.platform,
                     $browser: 'quartz',

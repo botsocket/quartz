@@ -22,13 +22,14 @@ describe('client()', () => {
             socket.on('message', (message) => {
 
                 const payload = JSON.parse(message);
+                const data = payload.d;
 
-                expect(payload.shards[0]).toBe(0);
-                expect(payload.shards[1]).toBe(1);
-                expect(payload.d.token).toBe(token);
-                expect(payload.d.properties.$os).toBe(process.platform);
-                expect(payload.d.properties.$browser).toBe('quartz');
-                expect(payload.d.properties.$device).toBe('quartz');
+                expect(data.shards[0]).toBe(0);
+                expect(data.shards[1]).toBe(1);
+                expect(data.token).toBe(token);
+                expect(data.properties.$os).toBe(process.platform);
+                expect(data.properties.$browser).toBe('quartz');
+                expect(data.properties.$device).toBe('quartz');
 
                 helpers.ready(sessionId, seq);
             });
@@ -463,7 +464,7 @@ describe('client()', () => {
 
                 const payload = JSON.parse(message);
 
-                expect(payload.intents).toBe(intents);
+                expect(payload.d.intents).toBe(intents);
 
                 helpers.ready();
             });
@@ -490,7 +491,7 @@ describe('client()', () => {
 
                 const payload = JSON.parse(message);
 
-                expect(payload.intents).toBe(intents);
+                expect(payload.d.intents).toBe(intents);
 
                 helpers.ready();
             });
@@ -517,7 +518,7 @@ describe('client()', () => {
 
                 const payload = JSON.parse(message);
 
-                expect(payload.intents).toBe(intents);
+                expect(payload.d.intents).toBe(intents);
 
                 helpers.ready();
             });
@@ -544,7 +545,7 @@ describe('client()', () => {
 
                 const payload = JSON.parse(message);
 
-                expect(payload.intents).toBe(intents);
+                expect(payload.d.intents).toBe(intents);
 
                 helpers.ready();
             });
