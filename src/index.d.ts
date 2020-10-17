@@ -80,17 +80,22 @@ declare namespace internals {
         /**
          * Discord gateway url used to establish the connection.
          */
-        url: string;
+        readonly url: string;
 
         /**
          * Sharding information.
          */
-        shard: [number, number];
+        readonly shard: [number, number];
 
         /**
          * Resolved intents.
          */
-        intents: number | null;
+        readonly intents: number | null;
+
+        /**
+         * Session id.
+         */
+        readonly id: string;
 
         /**
          * Listener invoked whenever the connection is closed, including closures before establishing reconnections.
@@ -106,11 +111,6 @@ declare namespace internals {
          * Listener invoked when Discord replies with the [dispatch event](https://discord.com/developers/docs/topics/gateway#sending-payloads-example-gateway-dispatch).
          */
         onDispatch: DispatchListener;
-
-        /**
-         * Session id.
-         */
-        id: string;
 
         /**
          * Connects to Discord Gateway API. Returns a promise that when resolved signifies a successful connection.
