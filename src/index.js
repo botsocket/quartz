@@ -121,7 +121,7 @@ internals.Client = class {
 
         this.url = url;
         this.shard = settings.shard || [0, 1];                          // Gateway shard
-        this.intents = internals.calculateIntents(settings.intents);    // Gateway intents
+        this.intents = internals.resolveIntents(settings.intents);      // Gateway intents
         delete settings.intents;
         delete settings.shard;
 
@@ -153,7 +153,7 @@ internals.Client = class {
     connect() {
 
         Assert(!this._ws, 'Client is already connecting');
-        Assert(!this._reconnection, 'Cannot start a client while it is attempting to reconnect');
+        Assert(!this._reconnection, 'Cannot connect while the client is attempting to reconnect');
 
         const reconnect = this._settings.reconnect;
         if (reconnect !== false) {                                                                  // Defaults to true
@@ -284,17 +284,11 @@ internals.Client = class {
 
         const reconnection = this._reconnection;
 
-        // _disconnect() called (probably from unrecoverable invalid session) or reconnect is set to false
+        if (!reconnection ||
+            !reconnection.attempts) {
 
-        const error = new Error(`Connection failed with code ${code} - ${reason}`);
-
-        if (!reconnection) {
-            return finalize(error);
-        }
-
-        if (!reconnection.attempts) {
-            this._disconnect();                  // Trigger this to clean up reconnectionTimer and reconnection state
-            return finalize(error);
+            this._disconnect();
+            return finalize(new Error(`Connection failed with code ${code} - ${reason}`));
         }
 
         // Reconnect
@@ -318,12 +312,12 @@ internals.Client = class {
         clearTimeout(this._reconnectionTimer);
         this._reconnectionTimer = null;
 
-        if (!this._ws) {
-            if (callback) {
-                callback();
-            }
-
+        if (!callback) {
             return;
+        }
+
+        if (!this._ws) {
+            return callback();
         }
 
         this._disconnectCallback = callback;
@@ -487,17 +481,17 @@ internals.Client = class {
 
 internals.noop = () => { };
 
-internals.calculateIntents = function (intents) {
+internals.resolveIntents = function (intents) {
 
     if (!intents) {
         return;
     }
 
-    let resolved = 0;
+    let bitmask = 0;
     for (const intent of intents) {
         const value = typeof intent === 'string' ? internals.intents[intent] : intent;
-        resolved |= value;
+        bitmask |= value;
     }
 
-    return resolved;
+    return bitmask;
 };

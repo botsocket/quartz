@@ -146,6 +146,36 @@ describe('client()', () => {
         cleanup();
     });
 
+    it('should connect after disconnection due to reaching maximum reconnection attempts', async () => {
+
+        const sessionId = 'some_random_session_id';
+
+        let count = 0;
+        const cleanup = Utils.gateway((socket, helpers) => {
+
+            if (count <= 2) {
+                count++;
+                return socket.close();
+            }
+
+            socket.on('message', () => {
+
+                helpers.ready(sessionId);
+            });
+
+            helpers.hello();
+        });
+
+        const client = Quartz.client(Utils.url, { token: 'test', reconnect: { attempts: 2, delay: 10 } });
+        await expect(client.connect()).rejects.toThrow('Connection failed with code 1005 - No status received');
+
+        await client.connect();                 // Make sure client does not throw "'Cannot connect while the client is attempting to reconnect'"
+        expect(client.id).toBe(sessionId);
+
+        await client.disconnect();
+        cleanup();
+    });
+
     it('should reconnect on socket close', async () => {
 
         const sessionId = 'some_random_session_id';
@@ -583,6 +613,11 @@ describe('client()', () => {
 
             await client.disconnect();
             cleanup();
+        });
+
+        it('should throw if called while reconnecting', () => {
+
+
         });
     });
 
