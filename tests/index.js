@@ -17,7 +17,7 @@ describe('client()', () => {
         const token = 'some_random_token';
         const seq = 1;
 
-        const cleanup = Utils.gateway((socket, helpers) => {
+        const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
             socket.on('message', (message) => {
 
@@ -37,7 +37,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(Utils.url, { token });
+        const client = Quartz.client(Utils.baseUrl + port, { token });
 
         await client.connect();
         expect(client.id).toBe(sessionId);
@@ -51,7 +51,7 @@ describe('client()', () => {
 
         const sessionId = 'some_random_session_id';
 
-        const cleanup = Utils.gateway((socket, helpers) => {
+        const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
             socket.on('message', () => {
 
@@ -61,7 +61,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test' });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test' });
 
         await client.connect();
         await client.disconnect();
@@ -74,7 +74,7 @@ describe('client()', () => {
 
     it('should throw on invalid tokens', async () => {
 
-        const cleanup = Utils.gateway((socket, helpers) => {
+        const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
             socket.on('message', () => {
 
@@ -84,7 +84,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test' });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test' });
 
         await expect(client.connect()).rejects.toThrow('Invalid token');
 
@@ -94,12 +94,12 @@ describe('client()', () => {
 
     it('should throw on invalid json response', async () => {
 
-        const cleanup = Utils.gateway((socket) => {
+        const { cleanup, port } = Utils.gateway((socket) => {
 
             socket.send('{');               // Raw send. No JSON.parse()
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test' });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test' });
 
         await expect(client.connect()).rejects.toThrow('Invalid JSON content');
 
@@ -109,21 +109,20 @@ describe('client()', () => {
 
     it('should throw if server is unavailable', async () => {
 
-        const client = Quartz.client(Utils.url, { token: 'test' });
+        const client = Quartz.client('ws://localhost', { token: 'test' });
 
-        await expect(client.connect()).rejects.toThrow('connect ECONNREFUSED 127.0.0.1:3000');
-
+        await expect(client.connect()).rejects.toThrow('connect ECONNREFUSED 127.0.0.1');
         await client.disconnect();
     });
 
     it('should throw if socket closes and reconnect is set to false', async () => {
 
-        const cleanup = Utils.gateway((socket) => {
+        const { cleanup, port } = Utils.gateway((socket) => {
 
             socket.close();
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test', reconnect: false });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test', reconnect: false });
 
         await expect(client.connect()).rejects.toThrow('Connection failed with code 1005 - No status received');
 
@@ -133,12 +132,12 @@ describe('client()', () => {
 
     it('should throw if socket closes and has reached maximum attempts', async () => {
 
-        const cleanup = Utils.gateway((socket) => {
+        const { cleanup, port } = Utils.gateway((socket) => {
 
             socket.close();
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test', reconnect: { attempts: 2, delay: 10 } });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test', reconnect: { attempts: 2, delay: 10 } });
 
         await expect(client.connect()).rejects.toThrow('Connection failed with code 1005 - No status received');
 
@@ -151,7 +150,7 @@ describe('client()', () => {
         const sessionId = 'some_random_session_id';
 
         let count = 0;
-        const cleanup = Utils.gateway((socket, helpers) => {
+        const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
             if (count <= 2) {
                 count++;
@@ -166,7 +165,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test', reconnect: { attempts: 2, delay: 10 } });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test', reconnect: { attempts: 2, delay: 10 } });
         await expect(client.connect()).rejects.toThrow('Connection failed with code 1005 - No status received');
 
         await client.connect();                 // Make sure client does not throw "'Cannot connect while the client is attempting to reconnect'"
@@ -181,7 +180,7 @@ describe('client()', () => {
         const sessionId = 'some_random_session_id';
 
         let count = 0;
-        const cleanup = Utils.gateway((socket, helpers) => {
+        const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
             if (count === 2) {
                 socket.on('message', () => {
@@ -196,7 +195,7 @@ describe('client()', () => {
             count++;
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test', reconnect: { attempts: 2, delay: 10 } });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test', reconnect: { attempts: 2, delay: 10 } });
 
         await client.connect();
         expect(client.id).toBe(sessionId);
@@ -207,27 +206,28 @@ describe('client()', () => {
 
     it('should reconnect and then throw', async () => {
 
-        const cleanup = Utils.gateway((socket) => {
+        const { cleanup, port } = Utils.gateway((socket) => {
 
             socket.close();
             cleanup();
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test', reconnect: { attempts: 1, delay: 10 } });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test', reconnect: { attempts: 1, delay: 10 } });
 
-        await expect(client.connect()).rejects.toThrow('connect ECONNREFUSED 127.0.0.1:3000');
+        await expect(client.connect()).rejects.toThrow('connect ECONNREFUSED 127.0.0.1:' + port);
 
         await client.disconnect();
     });
 
     it('should send a heartbeat if requested', async () => {
 
+        let port;
         const seq = 1;
 
         let count = 0;
         const promise = new Promise((resolve) => {
 
-            const cleanup = Utils.gateway((socket, helpers) => {
+            const gateway = Utils.gateway((socket, helpers) => {
 
                 socket.on('message', async (message) => {
 
@@ -238,7 +238,7 @@ describe('client()', () => {
                         expect(payload.d).toBe(seq);
 
                         await client.disconnect();
-                        cleanup();
+                        gateway.cleanup();
                         return resolve();
                     }
 
@@ -251,9 +251,11 @@ describe('client()', () => {
 
                 helpers.hello();
             });
+
+            port = gateway.port;
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test' });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test' });
 
         await client.connect();
         await promise;
@@ -261,10 +263,12 @@ describe('client()', () => {
 
     it('should acknowledge heartbeat', async () => {
 
+        let port;
+
         let count = 0;
         const promise = new Promise((resolve) => {
 
-            const cleanup = Utils.gateway((socket, helpers) => {
+            const gateway = Utils.gateway((socket, helpers) => {
 
                 socket.on('message', async (message) => {
 
@@ -286,7 +290,7 @@ describe('client()', () => {
                     if (count === 2) {
                         assertHeartbeatPayload();
                         await client.disconnect();
-                        cleanup();
+                        gateway.cleanup();
                         return resolve();
                     }
 
@@ -295,9 +299,11 @@ describe('client()', () => {
 
                 helpers.hello(100);
             });
+
+            port = gateway.port;
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test' });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test' });
 
         await client.connect();
         await promise;
@@ -305,7 +311,7 @@ describe('client()', () => {
 
     it('should disconnect if heartbeat is not acknowledged', async () => {
 
-        const cleanup = Utils.gateway((socket, helpers) => {
+        const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
             socket.on('message', () => {
 
@@ -315,7 +321,7 @@ describe('client()', () => {
             helpers.hello(10);             // Set to a short amount of time to cause the connection to close quickly due to Heartbeat unacknowledged
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test', reconnect: false });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test', reconnect: false });
 
         client.onError = () => { };        // Prevent console.log when running tests
 
@@ -338,7 +344,7 @@ describe('client()', () => {
     it('should reconnect if requested', async () => {
 
         let count = 0;
-        const cleanup = Utils.gateway((socket, helpers) => {
+        const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
             socket.on('message', () => {
 
@@ -353,7 +359,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test', reconnect: { delay: 10 } });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test', reconnect: { delay: 10 } });
 
         // Finish before client.connect() resolves
 
@@ -375,7 +381,7 @@ describe('client()', () => {
         const sessionId = 'some_random_session_id';
         const token = 'some_random_token';
 
-        const cleanup = Utils.gateway((socket, helpers) => {
+        const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
             socket.on('message', (message) => {
 
@@ -391,7 +397,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(Utils.url, { token, id: sessionId });
+        const client = Quartz.client(Utils.baseUrl + port, { token, id: sessionId });
 
         await client.connect();
 
@@ -406,7 +412,7 @@ describe('client()', () => {
         const seq = 1;
 
         let count = 0;
-        const cleanup = Utils.gateway((socket, helpers) => {
+        const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
             socket.on('message', async (message) => {
 
@@ -430,7 +436,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(Utils.url, { token });
+        const client = Quartz.client(Utils.baseUrl + port, { token });
 
         const promise = new Promise((resolve) => {
 
@@ -451,7 +457,7 @@ describe('client()', () => {
 
     it('should disconnect if session is not resumable', async () => {
 
-        const cleanup = Utils.gateway((socket, helpers) => {
+        const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
             socket.on('message', async () => {
 
@@ -464,7 +470,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test', reconnect: false });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test', reconnect: false });
 
         client.onError = () => { };             // Prevent console.log when running tests
 
@@ -488,7 +494,7 @@ describe('client()', () => {
 
         const intents = 1 << 0;
 
-        const cleanup = Utils.gateway((socket, helpers) => {
+        const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
             socket.on('message', (message) => {
 
@@ -502,7 +508,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test', intents });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test', intents });
 
         await client.connect();
         expect(client.intents).toBe(intents);
@@ -515,7 +521,7 @@ describe('client()', () => {
 
         const intents = 1 << 0 | 1 << 1;
 
-        const cleanup = Utils.gateway((socket, helpers) => {
+        const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
             socket.on('message', (message) => {
 
@@ -529,7 +535,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test', intents: [1 << 0, 1 << 1] });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test', intents: [1 << 0, 1 << 1] });
 
         await client.connect();
         expect(client.intents).toBe(intents);
@@ -542,7 +548,7 @@ describe('client()', () => {
 
         const intents = 1 << 0;
 
-        const cleanup = Utils.gateway((socket, helpers) => {
+        const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
             socket.on('message', (message) => {
 
@@ -556,7 +562,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test', intents: 'GUILDS' });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test', intents: 'GUILDS' });
 
         await client.connect();
         expect(client.intents).toBe(intents);
@@ -569,7 +575,7 @@ describe('client()', () => {
 
         const intents = 1 << 0 | 1 << 1 | 1 << 2;
 
-        const cleanup = Utils.gateway((socket, helpers) => {
+        const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
             socket.on('message', (message) => {
 
@@ -583,7 +589,7 @@ describe('client()', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(Utils.url, { token: 'test', intents: ['GUILDS', 'GUILD_MEMBERS', 1 << 2] });
+        const client = Quartz.client(Utils.baseUrl + port, { token: 'test', intents: ['GUILDS', 'GUILD_MEMBERS', 1 << 2] });
 
         await client.connect();
         expect(client.intents).toBe(intents);
@@ -596,7 +602,7 @@ describe('client()', () => {
 
         it('should throw when called twice', async () => {
 
-            const cleanup = Utils.gateway((socket, helpers) => {
+            const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
                 socket.on('message', () => {
 
@@ -606,7 +612,7 @@ describe('client()', () => {
                 helpers.hello();
             });
 
-            const client = Quartz.client(Utils.url, { token: 'test' });
+            const client = Quartz.client(Utils.baseUrl + port, { token: 'test' });
 
             await client.connect();
             expect(() => client.connect()).toThrow('Client is already connecting');
@@ -614,18 +620,13 @@ describe('client()', () => {
             await client.disconnect();
             cleanup();
         });
-
-        it('should throw if called while reconnecting', () => {
-
-
-        });
     });
 
     describe('send()', () => {
 
         it('should throw if not connected', () => {
 
-            const client = Quartz.client(Utils.url, { token: 'test' });
+            const client = Quartz.client('ws://localhost', { token: 'test' });
 
             expect(() => client.send({ a: 1 })).toThrow('Cannot send payloads before connecting');
         });
@@ -635,7 +636,7 @@ describe('client()', () => {
             const total = 120;
             const extra = 10;
 
-            const cleanup = Utils.gateway((socket, helpers) => {
+            const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
                 socket.on('message', () => {
 
@@ -656,7 +657,7 @@ describe('client()', () => {
                 }
             };
 
-            const client = Quartz.client(Utils.url, { token: 'test' });
+            const client = Quartz.client(Utils.baseUrl + port, { token: 'test' });
 
             const promise = client.connect();
 
@@ -710,7 +711,7 @@ describe('client()', () => {
 
         it('should log to console by default', async () => {
 
-            const cleanup = Utils.gateway((socket, helpers) => {
+            const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
                 socket.on('message', () => {
 
@@ -720,7 +721,7 @@ describe('client()', () => {
                 helpers.hello();
             });
 
-            const client = Quartz.client(Utils.url, { token: 'test', reconnect: false });
+            const client = Quartz.client(Utils.baseUrl + port, { token: 'test', reconnect: false });
 
             const error = new Error('Test');
 
@@ -751,7 +752,7 @@ describe('client()', () => {
 
             const data = { a: 1 };
             const event = 'ANOTHER_EVENT';
-            const cleanup = Utils.gateway((socket, helpers) => {
+            const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
                 socket.on('message', async () => {
 
@@ -764,7 +765,7 @@ describe('client()', () => {
                 helpers.hello();
             });
 
-            const client = Quartz.client(Utils.url, { token: 'test' });
+            const client = Quartz.client(Utils.baseUrl + port, { token: 'test' });
 
             let count = 0;
             const promise = new Promise((resolve) => {

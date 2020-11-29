@@ -13,11 +13,11 @@ exports.opCodes = {                                // https://discord.com/develo
     heartbeatAck: 11,
 };
 
-exports.url = 'ws://localhost:3000';
+exports.baseUrl = 'ws://localhost:';
 
 exports.gateway = function (handler) {
 
-    const server = new Ws.Server({ port: 3000 });
+    const server = new Ws.Server({ port: 0 });
 
     server.on('connection', (socket) => {
 
@@ -85,9 +85,13 @@ exports.gateway = function (handler) {
 
     });
 
-    return function () {
+    return {
+        port: server.address().port,
 
-        server.close();
-        server.removeAllListeners();
+        cleanup() {
+
+            server.close();
+            server.removeAllListeners();
+        },
     };
 };

@@ -15,7 +15,7 @@ describe('browser', () => {
         const token = 'some_random_token';
         const seq = 1;
 
-        const cleanup = Utils.gateway((socket, helpers) => {
+        const { cleanup, port } = Utils.gateway((socket, helpers) => {
 
             socket.on('message', () => {
 
@@ -25,7 +25,7 @@ describe('browser', () => {
             helpers.hello();
         });
 
-        const client = Quartz.client(Utils.url, { token });
+        const client = Quartz.client(Utils.baseUrl + port, { token });
 
         await client.connect();
         expect(client.id).toBe(sessionId);
