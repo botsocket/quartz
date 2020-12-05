@@ -725,11 +725,13 @@ describe('client()', () => {
 
             const error = new Error('Test');
 
+            let calls = 0;
             const original = console.log;
             const promise = new Promise((resolve) => {
 
                 console.log = async function (logError) {
 
+                    calls++;
                     expect(logError).toBe(error);
 
                     console.log = original;
@@ -743,6 +745,7 @@ describe('client()', () => {
             await client.connect();
             client._ws.emit('error', error);
             await promise;
+            expect(calls).toBe(1);
         });
     });
 
