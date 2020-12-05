@@ -363,7 +363,10 @@ describe('client()', () => {
 
         // Finish before client.connect() resolves
 
+        let calls = 0;
         client.onDisconnect = function ({ explanation }) {
+
+            calls++;
 
             if (count === 0) {
                 expect(explanation).toBe('Reconnection request');
@@ -371,6 +374,8 @@ describe('client()', () => {
         };
 
         await client.connect();
+
+        expect(calls).toBe(1);
 
         await client.disconnect();
         cleanup();
@@ -662,6 +667,8 @@ describe('client()', () => {
             const promise = client.connect();
 
             // Mock ws.send() to count the number of times it was called
+            // We can't count payloads within gateway handler because send is async
+            // Payload count would still be 0 after sending all the payloads
 
             let count = 0;
             const originalSend = client._ws.send;
