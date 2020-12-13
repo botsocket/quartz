@@ -2,6 +2,10 @@
 
 const Ws = require('ws');
 
+const internals = {
+    gateway: null,                                 // Mocked gateway
+};
+
 exports.opCodes = {                                // https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-opcodes
     dispatch: 0,
     heartbeat: 1,
@@ -13,13 +17,28 @@ exports.opCodes = {                                // https://discord.com/develo
     heartbeatAck: 11,
 };
 
-exports.baseUrl = 'ws://localhost:';
+exports.baseUrl = 'ws://localhost:3000';
+
+afterEach(() => {
+
+    if (internals.gateway) {
+        const gateway = internals.gateway;
+        internals.gateway = null;
+        gateway.removeAllListeners();
+
+        return new Promise((resolve) => {
+
+            gateway.close(resolve);
+        });
+    }
+});
 
 exports.gateway = function (handler) {
 
-    const server = new Ws.Server({ port: 0 });
+    const gateway = new Ws.Server({ port: 3000 });
+    internals.gateway = gateway;
 
-    server.on('connection', (socket) => {
+    gateway.on('connection', (socket) => {
 
         if (!handler) {
             return;
@@ -30,68 +49,50 @@ exports.gateway = function (handler) {
             socket.send(JSON.stringify(payload));
         };
 
-        const hello = function (interval) {
-
-            send({ op: exports.opCodes.hello, d: { heartbeat_interval: interval || 20000 } });            // Set interval to 20s by default, which is long enough to not cause the connection to close with Heartbeat unacknowledged
-        };
-
-        const requestHeartbeat = function () {
-
-            send({ op: exports.opCodes.heartbeat });
-        };
-
-        const ackHeartbeat = function () {
-
-            send({ op: exports.opCodes.heartbeatAck });
-        };
-
-        const requestReconnection = function () {
-
-            send({ op: exports.opCodes.reconnect });
-        };
-
-        const invalidSession = function (resumable) {
-
-            send({ op: exports.opCodes.invalidSession, d: resumable });
-        };
-
-        const dispatch = function (event, data, seq) {
-
-            send({ op: exports.opCodes.dispatch, t: event, d: data, s: seq });
-        };
-
-        const ready = function (sessionId, seq) {
-
-            dispatch('READY', { session_id: sessionId }, seq);
-        };
-
-        const resumed = function (seq) {
-
-            dispatch('RESUMED', null, seq);
-        };
-
         const helpers = {
-            hello,
-            requestHeartbeat,
-            ackHeartbeat,
-            requestReconnection,
-            invalidSession,
-            dispatch,
-            resumed,
-            ready,
+            hello(interval) {
+
+                send({ op: exports.opCodes.hello, d: { heartbeat_interval: interval || 20000 } });            // Set interval to 20s by default, which is long enough to not cause the connection to close with Heartbeat unacknowledged
+            },
+
+            requestHeartbeat() {
+
+                send({ op: exports.opCodes.heartbeat });
+            },
+
+            ackHeartbeat() {
+
+                send({ op: exports.opCodes.heartbeatAck });
+            },
+
+            requestReconnection() {
+
+                send({ op: exports.opCodes.reconnect });
+            },
+
+            invalidSession(resumable) {
+
+                send({ op: exports.opCodes.invalidSession, d: resumable });
+            },
+
+            dispatch(event, data) {
+
+                send({ op: exports.opCodes.dispatch, t: event, d: data });
+            },
+
+            resumed(seq) {
+
+                send({ op: exports.opCodes.dispatch, t: 'RESUMED', d: null, s: seq });
+            },
+
+            ready(sessionId, seq) {
+
+                send({ op: exports.opCodes.dispatch, t: 'READY', d: { session_id: sessionId }, s: seq });
+            },
         };
 
         handler(socket, helpers);
-
     });
 
-    return {
-        port: server.address().port,
-
-        cleanup() {
-
-            server.close();
-            server.removeAllListeners();
-        },
-    };
+    return gateway;
 };
