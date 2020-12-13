@@ -237,6 +237,7 @@ internals.Client = class {
             // Trigger event
 
             this.onDisconnect({ code, reason, explanation: this._closeExplanation });
+            this._closeExplanation = null;
 
             // Check for non-recoverable codes
 

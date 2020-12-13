@@ -335,8 +335,7 @@ describe('client()', () => {
 
                 socket.on('message', async () => {
 
-                    if (!count) {
-                        count++;
+                    if (!count) {               // Count increased within onDisconnect
                         helpers.ready();
                         await internals.wait(100);
                         return helpers.requestReconnection();
@@ -356,7 +355,13 @@ describe('client()', () => {
 
         client.onDisconnect = function ({ explanation }) {
 
-            expect(explanation).toBe('Reconnection requested');
+            if (!count) {
+                count++;
+                expect(explanation).toBe('Reconnection requested');
+                return;
+            }
+
+            expect(explanation).toBe(null);         // Invoked when client.disconnect() was called within gateway handler. Explanation should be null
         };
 
         await client.connect();
