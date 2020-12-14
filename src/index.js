@@ -488,11 +488,11 @@ internals.resolveIntents = function (intents) {
         return;
     }
 
-    let bitmask = 0;
+    let bits = 0;
     for (const intent of intents) {
-        const value = typeof intent === 'string' ? internals.intents[intent] : intent;
-        bitmask |= value;
+        const bitmask = typeof intent === 'string' ? internals.intents[intent] : intent;
+        bits |= bitmask;
     }
 
-    return bitmask;
+    return bits;
 };
